@@ -1,0 +1,352 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Diagnostics;
+using System.IO;
+using System.Configuration;
+
+namespace AnythinkSolutions.Wpf.Common.Helpers
+{
+	public class TimingsHelper
+	{
+		#region Timer
+		// BES - 8/20/08
+		//This logic is used as a temporary solution to capture timings per the request of Donna and others.
+		// it provides basic timing functionality with support for multiple simultaneous timings and logging
+		// the timing results to a log file.
+		// Some desired improvements if this solution persists:
+		//  1. Don't constantly open and close the log file - keep a stream writer open and just stream timings in as they come
+		//     - will need to add logic to verify the file is closed in the case of application shut down or failure
+		//  2. Move to a separate thread and drop log request onto a queue so they are processed in the order they are received
+		//		This will also resolve any contention issues with the file.
+		//
+		//  I have specifically chosen not to lock the timings file so that we don't delay the app, though this may mean that a
+		//  timing doesn't get written because the file is locked by a separate request.
+		private const string LogFile = "autumn_timings.log";						//The file name where timings will be logged
+		private const string LogDirectoryRelative = "Anythink\\Autumn\\Logs";		//The relative directory (inside users's LocalApplicationData folder)
+		private static string LogPath;											//The full path to the timings log file
+
+		private static bool? _logTimings = null;					//Flag to say whether timings are being logged to a log file
+		private static int _timerIndex = 0;						//Counter used as the key for a stop watch instance
+		private static Dictionary<int, Stopwatch> _timers;		//Dictionary holding an indexed collection of the stop watches currently running
+		private static Stack<Stopwatch> _swStack;				//stack used to hold unused stop watches so we are reusing, rather than instantiaing each time
+
+		private static Queue<string> _messageQueue;
+		private static bool _haveLog = false;
+
+		/// <summary>
+		/// Starts a timer and returns a key to access the timer
+		/// </summary>
+		/// <returns>An integer which is the key to this timer.  Use this key to stop this timer</returns>
+		public static int StartTimer()
+		{
+			try
+			{
+				if (_timers == null)
+					_timers = new Dictionary<int, Stopwatch>();
+
+				//Get a stop watch.  Check to see if we have an existing one in the stack otherwise, create a new one
+				Stopwatch sw = null;
+				if (_swStack != null && _swStack.Count > 0)
+					sw = _swStack.Pop();
+				else
+					sw = new Stopwatch();
+
+				int idx = _timerIndex;
+				_timers.Add(_timerIndex++, sw);
+
+				sw.Start();
+				return idx;
+			}
+			catch { return -1; }		//swallow an exception here
+		}
+
+		/// <summary>
+		/// Grabs the Timer from the dictionary, and constructs the message to be written to the debug and/or output windows
+		/// </summary>
+		/// <param name="index">The key for the timer</param>
+		/// <param name="message">The message describing what was timed</param>
+		/// <returns>The message for this timing with timing and date attached</returns>
+		private static string PopTimer(int index, string message)
+		{
+			string retMessage = null;
+
+			if (_timers.ContainsKey(index))
+			{
+				Stopwatch sw = _timers[index];
+				sw.Stop();
+
+				//Write out the timing information
+				retMessage = DateTime.Now.ToLongTimeString() + ":  " + message + sw.ElapsedMilliseconds.ToString();
+
+				//Remove the dictionary entry and put this stop watch on the stack
+				_timers.Remove(index);
+				sw.Reset();
+
+				if (_swStack == null)
+					_swStack = new Stack<Stopwatch>();
+
+				_swStack.Push(sw);
+			}
+
+			return retMessage;
+		}
+
+		/// <summary>
+		/// Checks to see if a timer exists in the current queue of timers
+		/// </summary>
+		/// <param name="timer">The timer key to check for</param>
+		public static bool TimerExists(int timer)
+		{
+			return _timers.ContainsKey(timer);
+		}
+
+		/// <summary>
+		/// Stops the timer and records the message along with the timing.
+		/// </summary>
+		/// <param name="index">The key to the timer to stop</param>
+		/// <param name="message">The description of what was being timed</param>
+		public static void StopTimer(int index, string message)
+		{
+			StopTimer(index, message, false);
+		}
+
+		/// <summary>
+		/// Stops the timer and records the messag and timing.  If queued, will not write the timing to the
+		/// log until either a non-queued message comes in, or the FlushTimerMessages method is called.
+		/// </summary>
+		/// <param name="index">The key for the timer to stop</param>
+		/// <param name="message">The message describing what was timed</param>
+		/// <param name="queueMessage">True if you don't want to write to the log file immediately.  
+		///	False to write to the log file immediately.</param>
+		public static void StopTimer(int index, string message, bool queueMessage)
+		{
+			string fullMessage = PopTimer(index, message);
+			if (fullMessage != null)
+			{
+				Debug.WriteLine(fullMessage);
+				if (LogTimings)
+				{
+					if (queueMessage)
+					{
+						if (_messageQueue == null)
+							_messageQueue = new Queue<string>();
+
+						_messageQueue.Enqueue(fullMessage);
+					}
+					else
+					{
+						//If there are queued messages, need to flush them now
+						if (_messageQueue != null && _messageQueue.Count > 0)
+							FlushTimerMessages();
+
+						//And then log the current one
+						LogTiming(fullMessage);
+					}
+				}
+
+			}
+		}
+
+		/// <summary>
+		/// Stops and removes a Timer from the queue without recording the timing.
+		/// </summary>
+		/// <param name="timer">The timer key to cancel</param>
+		public static void CancelTimer(int timer)
+		{
+			if (_timers.ContainsKey(timer))
+			{
+				_timers[timer].Stop();
+				_timers.Remove(timer);
+			}
+		}
+		/// <summary>
+		/// Flushes all the messages in the timer queue to the timings log file.
+		/// </summary>
+		public static void FlushTimerMessages()
+		{
+			if (_messageQueue.Count > 0)
+			{
+				//Wrap in a using to ensure proper clean up
+				using (StreamWriter sw = BeginLogTiming(_messageQueue.Dequeue()))
+				{
+					//add any additional messages
+					while (_messageQueue.Count > 0)
+					{
+						string msg = _messageQueue.Dequeue();
+						LogTiming(msg, sw);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Turns on or off logging for timings.  Determines whether the timings are written to a
+		/// log file, or just delivered to the output window.
+		/// </summary>
+		public static bool LogTimings
+		{
+			//set
+			//{
+			//    _logTimings = value;
+
+			//    if (_logTimings)
+			//    {
+			//        LogTiming(Environment.NewLine + "-------------  Timings Started: " + DateTime.Now.ToLongDateString() + "  -------------------");
+			//    }
+			//    else
+			//    {
+			//        LogTiming("-------------  Timings Stopped: " + DateTime.Now.ToLongDateString() + "  -------------------" + Environment.NewLine);
+			//    }
+			//}
+			get
+			{
+				if (!_logTimings.HasValue)
+				{
+					try
+					{
+						bool log = true;
+						if (!bool.TryParse(ConfigurationManager.AppSettings["LogTimings"], out log))
+						{
+							//Shell.LogMessage("The configuration entry for timings is not present.  Timings will be logged by default.");
+							log = true;
+						}
+
+						_logTimings = log;
+					}
+					catch (Exception ex)
+					{
+						//Shell.LogException(ex, "Trying to retrieve the LogTimings application configuration entry");
+						_logTimings = true;
+					}
+				}
+
+				return _logTimings.GetValueOrDefault();
+			}
+		}
+
+		/// <summary>
+		/// Sets up the file, directories and variables used to write to the log file.
+		/// </summary>
+		private static void SetupTimingsLog()
+		{
+			if (!_haveLog)
+			{
+				//Construct the path to the log file
+				string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), LogDirectoryRelative);
+				LogPath = Path.Combine(logDirectory, LogFile);
+
+				//Create the director/files if necessary
+				if (!File.Exists(LogPath))
+				{
+					if (!Directory.Exists(logDirectory))
+					{
+						Directory.CreateDirectory(logDirectory);
+						StreamWriter sw = File.CreateText(LogPath);
+						sw.Close();
+					}
+				}
+
+				_haveLog = true;
+			}
+
+			if (LogTimings)
+			{
+				//Write out that we're starting the timings
+				LogTiming(Environment.NewLine + "-------------  Timings Started: " + DateTime.Now.ToLongDateString() + "  -------------------");
+			}
+
+
+		}
+
+		/// <summary>
+		/// Writes a message to the timings log.
+		/// </summary>
+		/// <param name="message">The message to write to the timings log (including the duration)</param>
+		public static void LogTiming(string message)
+		{
+			try
+			{
+				//If necessary, setup the timings log
+				if (!_haveLog)
+					SetupTimingsLog();
+
+				//Open the log file and write the timing out
+				using (StreamWriter sw = File.AppendText(LogPath))
+				{
+					sw.WriteLine(message);
+				}
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					//Try writing out the exception, but if it fails, just keep going
+					//Shell.LogException(ex, "Trying to log the timing: " + message + " to the file " + LogPath);
+				}
+				catch { }
+			}
+		}
+
+		/// <summary>
+		/// Logs a timing, keeps open the stream writier and returns it to be re-used.
+		/// </summary>
+		/// <param name="message">The message to log</param>
+		/// <returns>The stream writer with the open connection to the timings log file.</returns>
+		private static StreamWriter BeginLogTiming(string message)
+		{
+			StreamWriter sw = null;
+			try
+			{
+				//If necessary, setup the timings log
+				if (!_haveLog)
+					SetupTimingsLog();
+
+				//Open the log file and write the timing out
+				sw = File.AppendText(LogPath);
+				sw.WriteLine(message);
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					if (sw != null)
+					{
+						sw.Close();
+						sw.Dispose();
+						sw = null;
+					}
+
+					//Try writing out the exception, but if it fails, just keep going
+					//Shell.LogException(ex, "Trying to log the timing: " + message + " to the file " + LogPath);
+				}
+				catch { }
+			}
+
+			return sw;
+		}
+
+		/// <summary>
+		/// Logs a timing using an existing stream writer
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="writer"></param>
+		private static void LogTiming(string message, StreamWriter writer)
+		{
+			try
+			{
+				if (writer != null)
+					writer.WriteLine(message);
+			}
+			catch
+			{
+				//Failed to use the existing writer, so just log the timing manually
+				LogTiming(message);
+			}
+		}
+
+		#endregion
+
+	}
+}

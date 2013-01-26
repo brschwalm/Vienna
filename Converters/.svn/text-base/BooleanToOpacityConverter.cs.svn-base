@@ -1,0 +1,76 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Windows.Data;
+
+namespace AnythinkSolutions.Wpf.Common.Converters
+{
+	/// <summary>
+	/// This converter is used to change the opacity of visual elemnts based on a boolean value.  For example,
+	/// the opacity of an element could be reduced when a CheckBox is not selected to indicate it is not active.
+	/// The default opacities are 1 for true and 0.65 for false, however a converter parameter allows for custom
+	/// definition of the opacity when false.
+	/// </summary>
+	[ValueConversion(typeof(bool), typeof(double))]
+	public class BooleanToOpacityConverter : IValueConverter
+	{
+		#region Fields
+
+		private bool _not = false;
+
+		#endregion
+
+		public bool Not { get { return _not; } set { _not = value; } }
+
+		#region IValueConverter Members
+
+		public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+		{
+			if (Not)
+			{
+				if (!(bool)value)
+				{
+					return 1;
+				}
+				else
+				{
+					double val = 0.65;
+
+					if (parameter != null)
+					{
+						double.TryParse(parameter.ToString(), out val);
+					}
+
+					return val;
+				}
+			}
+			else
+			{
+				if ((bool)value)
+				{
+					return 1;
+				}
+				else
+				{
+					double val = 0.65;
+
+					if (parameter != null)
+					{
+						double.TryParse(parameter.ToString(), out val);
+					}
+
+					return val;
+				}
+			}
+
+			
+		}
+
+		public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+		{
+			throw new NotImplementedException();
+		}
+
+		#endregion
+	}
+}

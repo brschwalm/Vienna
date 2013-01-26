@@ -1,0 +1,35 @@
+﻿<Window x:Class="Anythink.Wpf.Utilities.Examples.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vienna="http://schemas.anythinksolutions.com/2008/xaml/wpf/utilities"
+        Title="MainWindow" Height="350" Width="525"
+        Icon="{vienna:ImageResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=Window_Icon}">
+    <Grid>
+        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        
+        <Rectangle Grid.ColumnSpan="2" Fill="LightBlue"/>
+        <TextBlock Grid.ColumnSpan="2" HorizontalAlignment="Center">String Markup Extension Example:</TextBlock>
+
+        <StackPanel Grid.Row="1" VerticalAlignment="Center">
+            <TextBlock x:Name="Block1" Text="{vienna:StringResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=TestString}" Margin="5,0"/>
+            <TextBlock x:Name="Block2" Text="{vienna:StringResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=TestString2}" Margin="5"/>
+        </StackPanel>
+
+        <Button Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{vienna:StringResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=TestTooltip}">Tooltip Button</Button>
+
+        <Rectangle Grid.Row="2" Grid.ColumnSpan="2" Fill="LightBlue"/>
+        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Center">Image Markup Extension Example:</TextBlock>
+        <Image x:Name="Image1" Grid.Row="3"  HorizontalAlignment="Center" Source="{vienna:ImageResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=Information}" Margin="5" Height="32" Width="32" Stretch="Uniform"/>
+        <Image x:Name="Image2" Grid.Row="3" Grid.Column="1" HorizontalAlignment="Center" Source="{vienna:ImageResource ClassName=Anythink.Wpf.Utilities.Examples.Properties.Resources, ResourceName=Money_Bag}" Margin="5" Height="32" Width="32" Stretch="Uniform"/>
+    </Grid>
+</Window>

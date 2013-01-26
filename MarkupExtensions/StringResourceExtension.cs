@@ -1,0 +1,54 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Windows.Markup;
+using System.Reflection;
+using System.Windows;
+
+namespace Anythink.Wpf.Utilities.MarkupExtensions
+{
+	/// <summary>
+	/// A custom markup extension that will accept the filename and string name of a string in a .resx file and
+	/// return the actual string.
+	/// </summary>
+	[MarkupExtensionReturnType(typeof(string))]
+	public class StringResourceExtension : MarkupExtension
+	{
+
+
+		public override object ProvideValue(IServiceProvider serviceProvider)
+		{
+			Assembly caller = Assembly.GetEntryAssembly();
+			var obj = caller.GetType(ClassName).GetProperty(ResourceName, BindingFlags.Static | BindingFlags.NonPublic);
+			if (obj != null)
+			{
+				var str = obj.GetValue(obj, null);
+				return str;
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		#region Properties
+
+		/// <summary>
+		/// Gets or sets the fully-qualified class name of the Resource File where the resource is located.
+		/// </summary>
+		public string ClassName { get; set; }
+
+		/// <summary>
+		/// Gets or sets the name of the Resource to retrieve
+		/// </summary>
+		public string ResourceName { get; set; }
+		
+		/// <summary>
+		/// Gets or sets the default value that will be displayed when the resource cannot be found
+		/// </summary>
+		public string DefaultValue { get; set; }
+
+		#endregion
+	}
+}
