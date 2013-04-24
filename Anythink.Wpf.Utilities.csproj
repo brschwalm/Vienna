@@ -50,6 +50,7 @@
     </Reference>
     <Reference Include="System.Drawing" />
     <Reference Include="System.Xaml" />
+    <Reference Include="System.XML" />
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
@@ -57,7 +58,6 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
     <Reference Include="WindowsBase">
       <RequiredTargetFramework>3.0</RequiredTargetFramework>
     </Reference>
@@ -68,6 +68,7 @@
     <Compile Include="Behaviors\DragAndDropBehavior\IDragHandler.cs" />
     <Compile Include="Behaviors\DragAndDropBehavior\IDropHandler.cs" />
     <Compile Include="Behaviors\ItemsControlBehavior.cs" />
+    <Compile Include="Behaviors\TextBoxBehaviors.cs" />
     <Compile Include="Behaviors\WindowFocusBehavior.cs" />
     <Compile Include="Converters\BetterBooleanToVisibilityConverter.cs" />
     <Compile Include="Converters\BooleanToOpacityConverter.cs" />
@@ -75,8 +76,10 @@
     <Compile Include="Converters\NumberFormatConverter.cs" />
     <Compile Include="Converters\WordSeparatorConverter.cs" />
     <Compile Include="Helpers\ControlHelper.cs" />
+    <Compile Include="Helpers\ExtensionMethods.cs" />
     <Compile Include="Helpers\GlassHelper.cs" />
     <Compile Include="Helpers\VisualTreeHelperEx.cs" />
+    <Compile Include="Helpers\WindowPlacementHelper.cs" />
     <Compile Include="MarkupExtensions\ImageResourceExtension.cs" />
     <Compile Include="MarkupExtensions\StringResourceExtension.cs" />
     <Compile Include="ValidationRules\ValidationRuleStrings.Designer.cs">
